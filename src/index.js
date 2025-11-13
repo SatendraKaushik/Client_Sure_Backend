@@ -9,6 +9,7 @@ import authRoute from "./route/auth.js";
 import userRoute from "./route/user.js";
 import adminRoute from "./route/admin.js";
 import resourcesRoute from "./route/resources.js";
+import leadsRoute from "./route/leads.js";
 import { startTokenRefreshCron } from "./services/cronJobs.js";
 import { seedInitialData } from "./services/seedData.js";
 
@@ -45,6 +46,7 @@ app.use("/api/auth", authRoute);
 app.use("/api/user", userRoute);
 app.use("/api/admin", adminRoute);
 app.use("/api/resources", resourcesRoute);
+app.use("/api/leads", leadsRoute);
 app.use("/", dummyCheckoutRoute);
 
 app.listen(PORT,()=>{

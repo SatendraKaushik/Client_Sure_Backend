@@ -2,22 +2,13 @@ import express from 'express';
 import { authenticateToken } from '../middleware/auth.js';
 import { authenticateAdmin } from '../middleware/adminAuth.js';
 import { upload } from '../middleware/upload.js';
+import { excelUpload } from '../middleware/excelUpload.js';
 import { manualTokenRefresh } from '../services/cronJobs.js';
-import {
-  adminLogin,
-  adminLogout,
-  createResource,
-  getResources,
-  getResource,
-  updateResource,
-  deleteResource,
-  getUsers,
-  getUser,
-  updateUserTokens,
-  getAnalytics,
-  getUserGrowthData,
-  getRevenueData
-} from '../controller/adminController.js';
+import { adminLogin, adminLogout } from '../controller/AdminController/authController.js';
+import { createResource, getResources, getResource, updateResource, deleteResource } from '../controller/AdminController/resourceController.js';
+import { uploadLeads, getLeads, getLead, updateLead, deleteLead } from '../controller/AdminController/leadController.js';
+import { getUsers, getUser, updateUserTokens } from '../controller/AdminController/userController.js';
+import { getAnalytics, getUserGrowthData, getRevenueData } from '../controller/AdminController/analyticsController.js';
 
 const router = express.Router();
 
@@ -36,6 +27,13 @@ router.delete('/resources/:id', authenticateAdmin, deleteResource);
 router.get('/users', authenticateAdmin, getUsers);
 router.get('/users/:id', authenticateAdmin, getUser);
 router.put('/users/:id/tokens', authenticateAdmin, updateUserTokens);
+
+// Lead CRUD operations
+router.post('/leads/upload', authenticateAdmin, excelUpload.single('file'), uploadLeads);
+router.get('/leads', authenticateAdmin, getLeads);
+router.get('/get-lead/:id', authenticateAdmin, getLead);
+router.put('/update-leads/:id', authenticateAdmin, updateLead);
+router.delete('/leads/:id', authenticateAdmin, deleteLead);
 
 // Analytics operations
 router.get('/analytics', authenticateAdmin, getAnalytics);

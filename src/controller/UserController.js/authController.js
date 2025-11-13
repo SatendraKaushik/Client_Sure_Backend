@@ -1,9 +1,17 @@
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { User } from '../models/index.js';
-import Resource from '../models/Resource.js';
-import { createTransporter, sendEmailWithRetry, sendPasswordResetConfirmationEmail, sendWelcomeEmail } from '../utils/emailUtils.js';
+import { v2 as cloudinary } from 'cloudinary';
+import { User } from '../../models/index.js';
+import Resource from '../../models/Resource.js';
+import { createTransporter, sendEmailWithRetry, sendPasswordResetConfirmationEmail, sendWelcomeEmail } from '../../utils/emailUtils.js';
+
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
 // Setup nodemailer transporter
 const transporter = createTransporter();
@@ -412,124 +420,7 @@ export const sendPasswordSetupEmail = async (user, isNewUser = true) => {
   }
 };
 
-// Access resource and reduce tokens
-// post /api/auth/resources/:id/access
-export const accessResource = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user.id;
 
-    const resource = await Resource.findById(id);
-    if (!resource || !resource.isActive) {
-      return res.status(404).json({ error: 'Resource not found' });
-    }
-
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    // Check if subscription is active
-    const now = new Date();
-    if (!user.subscription.endDate || user.subscription.endDate < now) {
-      return res.status(403).json({ error: 'Subscription expired or inactive' });
-    }
-
-    // Check if user has enough daily tokens
-    if (user.tokens < resource.tokenCost) {
-      return res.status(403).json({ error: 'Insufficient daily tokens' });
-    }
-
-    // Check if user has enough monthly tokens
-    if (user.monthlyTokensRemaining < resource.tokenCost) {
-      return res.status(403).json({ error: 'Insufficient monthly tokens' });
-    }
-
-    // Reduce both daily and monthly tokens
-    user.tokens -= resource.tokenCost;
-    user.tokensUsedToday = (user.tokensUsedToday || 0) + resource.tokenCost;
-    user.monthlyTokensUsed += resource.tokenCost;
-    user.monthlyTokensRemaining -= resource.tokenCost;
-    user.tokensUsedTotal += resource.tokenCost;
-    
-    // Add to user's accessed resources history
-    if (!user.accessedResources) {
-      user.accessedResources = [];
-    }
-    user.accessedResources.unshift({
-      resourceId: resource._id,
-      tokenCost: resource.tokenCost,
-      accessedAt: new Date()
-    });
-    
-    // Keep only last 100 accessed resources
-    if (user.accessedResources.length > 100) {
-      user.accessedResources = user.accessedResources.slice(0, 100);
-    }
-    
-    await user.save();
-
-    res.json({
-      resource: {
-        id: resource._id,
-        title: resource.title,
-        description: resource.description,
-        type: resource.type,
-        url: resource.url,
-        thumbnailUrl: resource.thumbnailUrl
-      },
-      tokensUsed: resource.tokenCost,
-      remainingTokens: user.monthlyTokensRemaining
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-// Get accessed resources by user
-// get /api/auth/accessed-resources
-export const getAccessedResources = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    
-    const user = await User.findById(userId).select('accessedResources');
-    if (!user || !user.accessedResources) {
-      return res.json([]);
-    }
-
-    // Get resource IDs from user's access history
-    const resourceIds = user.accessedResources.map(item => item.resourceId);
-    
-    // Get full resource details
-    const resources = await Resource.find({ 
-      _id: { $in: resourceIds },
-      isActive: true 
-    }).select('title description type url thumbnailUrl tokenCost createdAt');
-
-    // Map resources with access history
-    const accessedResources = user.accessedResources
-      .map(accessItem => {
-        const resource = resources.find(r => r._id.toString() === accessItem.resourceId.toString());
-        if (!resource) return null;
-        
-        return {
-          id: resource._id,
-          title: resource.title,
-          description: resource.description,
-          type: resource.type,
-          url: resource.url,
-          thumbnailUrl: resource.thumbnailUrl,
-          tokenCost: accessItem.tokenCost,
-          accessedAt: accessItem.accessedAt
-        };
-      })
-      .filter(item => item !== null); // Remove null entries for deleted resources
-    
-    res.json(accessedResources);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
 
 // POST /api/auth/logout
 export const logout = async (req, res) => {
@@ -548,11 +439,69 @@ export const logout = async (req, res) => {
   }
 };
 
-// Get user profile data
-// get /api/auth/profile
+// PUT /api/auth/profile
+export const updateUserProfile = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { name, phone } = req.body;
+    const file = req.file;
+
+    if (!name || name.trim().length === 0) {
+      return res.status(400).json({ error: 'Name is required' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    user.name = name.trim();
+    if (phone !== undefined) {
+      user.phone = phone ? phone.trim() : null;
+    }
+
+    // Upload avatar if provided
+    if (file) {
+      const result = await new Promise((resolve, reject) => {
+        cloudinary.uploader.upload_stream(
+          {
+            resource_type: 'image',
+            folder: 'avatars',
+            transformation: [
+              { width: 200, height: 200, crop: 'fill' },
+              { quality: 'auto' }
+            ]
+          },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        ).end(file.buffer);
+      });
+      user.avatar = result.secure_url;
+    }
+
+    await user.save();
+
+    res.json({
+      message: 'Profile updated successfully',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        avatar: user.avatar
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// GET /api/auth/profile
 export const getUserProfile = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.userId;
     
     const user = await User.findById(userId).populate('subscription.planId');
     if (!user) {
@@ -562,6 +511,8 @@ export const getUserProfile = async (req, res) => {
     res.json({
       name: user.name,
       email: user.email,
+      phone: user.phone,
+      avatar: user.avatar,
       tokens: {
         daily: user.tokens,
         dailyUsed: user.tokensUsedToday || 0,

@@ -18,6 +18,10 @@ const userSchema = new mongoose.Schema({
     required: false,
     trim: true
   },
+  avatar: {
+    type: String,
+    required: false
+  },
   passwordHash: {
     type: String,
     required: false // Will be set after email verification
@@ -95,9 +99,15 @@ const userSchema = new mongoose.Schema({
       ref: 'Resource',
       required: true
     },
-    tokenCost: {
-      type: Number,
-      required: true
+    accessedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  accessedLeads: [{
+    leadId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Lead'
     },
     accessedAt: {
       type: Date,

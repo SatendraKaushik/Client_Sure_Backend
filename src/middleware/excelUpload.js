@@ -4,9 +4,6 @@ const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
   const allowedTypes = [
-    'image/jpeg', 'image/png', 'image/gif', 
-    'video/mp4', 'video/avi', 
-    'application/pdf',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
     'application/vnd.ms-excel', // .xls
     'text/csv' // .csv
@@ -14,14 +11,14 @@ const fileFilter = (req, file, cb) => {
   if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Invalid file type. Only images, videos, PDFs, and Excel files are allowed.'), false);
+    cb(new Error('Invalid file type. Only Excel files (.xlsx, .xls, .csv) are allowed.'), false);
   }
 };
 
-export const upload = multer({
+export const excelUpload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 100 * 1024 * 1024 // 100MB limit
+    fileSize: 50 * 1024 * 1024 // 50MB limit for large Excel files
   }
 });

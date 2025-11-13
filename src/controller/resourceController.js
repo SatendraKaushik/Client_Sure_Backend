@@ -17,7 +17,6 @@ export const getResources = async (req, res) => {
         title: resource.title,
         type: resource.type,
         description: resource.description,
-        tokenCost: resource.tokenCost,
         thumbnailUrl: resource.thumbnailUrl,
         isAccessedByUser: accessedResourceIds.includes(resource._id.toString())
       }))
@@ -55,42 +54,12 @@ export const accessResource = async (req, res) => {
       });
     }
 
-    // Check daily tokens
-    if (user.tokens < resource.tokenCost) {
-      return res.status(403).json({ 
-        error: 'Daily tokens exhausted',
-        required: resource.tokenCost,
-        dailyAvailable: user.tokens,
-        monthlyAvailable: user.monthlyTokensRemaining,
-        message: 'Daily tokens will reset at 1:00 AM'
-      });
-    }
-
-    // Check monthly tokens
-    if (user.monthlyTokensRemaining < resource.tokenCost) {
-      await sendRepurchaseEmail(user);
-      return res.status(403).json({ 
-        error: 'Monthly tokens exhausted',
-        required: resource.tokenCost,
-        monthlyRemaining: user.monthlyTokensRemaining,
-        needsRenewal: true
-      });
-    }
-
-    // Deduct from both daily and monthly
-    user.tokens -= resource.tokenCost;
-    user.tokensUsedToday += resource.tokenCost;
-    user.tokensUsedTotal += resource.tokenCost;
-    user.monthlyTokensUsed += resource.tokenCost;
-    user.monthlyTokensRemaining -= resource.tokenCost;
-    
     // Add to accessed resources history
     if (!user.accessedResources) {
       user.accessedResources = [];
     }
     user.accessedResources.unshift({
       resourceId: resource._id,
-      tokenCost: resource.tokenCost,
       accessedAt: new Date()
     });
     
@@ -119,8 +88,7 @@ export const accessResource = async (req, res) => {
         url: resource.url,
         content: resource.content
       },
-      tokensRemaining: user.tokens,
-      tokensUsed: resource.tokenCost
+      tokensRemaining: user.tokens
     });
 
   } catch (error) {
@@ -196,7 +164,7 @@ export const getAccessedResources = async (req, res) => {
         title: resource?.title,
         type: resource?.type,
         description: resource?.description,
-        tokenCost: accessItem.tokenCost,
+
         accessedAt: accessItem.accessedAt,
         thumbnailUrl: resource?.thumbnailUrl
       };
@@ -241,7 +209,7 @@ export const getResourceById = async (req, res) => {
       title: resource.title,
       type: resource.type,
       description: resource.description,
-      tokenCost: resource.tokenCost,
+
       thumbnailUrl: resource.thumbnailUrl,
       url: hasAccessed ? resource.url : null,
       content: hasAccessed ? resource.content : null,

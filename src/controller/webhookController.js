@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { Order, Plan, User } from '../models/index.js';
-import { sendPasswordSetupEmail } from './authController.js';
+import { sendPasswordSetupEmail } from './UserController.js/authController.js';
 
 export const handleWebhook = async (req, res) => {
   try {

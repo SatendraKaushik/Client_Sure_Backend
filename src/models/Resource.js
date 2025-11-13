@@ -15,12 +15,6 @@ const resourceSchema = new mongoose.Schema({
     enum: ['pdf', 'video', 'image', 'document'],
     required: true
   },
-  tokenCost: {
-    type: Number,
-    required: true,
-    min: 1,
-    default: 5
-  },
   url: {
     type: String,
     required: true
