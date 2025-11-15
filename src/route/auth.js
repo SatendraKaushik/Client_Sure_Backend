@@ -5,7 +5,7 @@ import { upload } from '../middleware/upload.js';
 import { getUserProfile, login, logout, register, requestReset, resetPassword, updateUserProfile } from '../controller/UserController.js/authController.js';
 import { accessResource, getAccessedResourceById, getAccessedResources } from '../controller/UserController.js/resources.controller.js';
 // leads
-import { getLeads, accessLead, getAccessedLeads, getAccessedLeadById, bulkAccessLeads } from '../controller/UserController.js/leads.controller.js';
+import { getLeads, accessLead, getAccessedLeads, getAccessedLeadById, bulkAccessLeads, exportLeadData, bulkExportLeads } from '../controller/UserController.js/leads.controller.js';
 
 const router = express.Router();
 
@@ -55,6 +55,12 @@ router.get('/leads/get-accessed/:id', authenticateToken, getAccessedLeadById);
 // bulk lead
 
 router.post('/leads/bulk-access', authenticateToken, bulkAccessLeads);
+
+// POST /api/auth/leads/export
+router.post('/leads/export', authenticateToken, exportLeadData);
+
+// POST /api/auth/leads/bulk-export
+router.post('/leads/bulk-export', authenticateToken, bulkExportLeads);
 
 
 

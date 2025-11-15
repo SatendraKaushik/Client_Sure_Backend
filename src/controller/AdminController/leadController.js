@@ -10,80 +10,172 @@ export const uploadLeads = async (req, res) => {
       return res.status(400).json({ error: 'Excel file is required' });
     }
 
-    // Parse Excel file
+    // Parse Excel file with proper row order preservation
     console.log('Parsing Excel file...');
     const workbook = xlsx.read(file.buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
-    const data = xlsx.utils.sheet_to_json(worksheet);
+    
+    // Get range to preserve row order
+    const range = xlsx.utils.decode_range(worksheet['!ref']);
+    const data = [];
+    
+    // Extract data row by row to maintain sequence
+    for (let rowNum = range.s.r + 1; rowNum <= range.e.r; rowNum++) {
+      const row = {};
+      for (let colNum = range.s.c; colNum <= range.e.c; colNum++) {
+        const cellAddress = xlsx.utils.encode_cell({ r: rowNum, c: colNum });
+        const headerAddress = xlsx.utils.encode_cell({ r: range.s.r, c: colNum });
+        const header = worksheet[headerAddress]?.v;
+        const cellValue = worksheet[cellAddress]?.v || '';
+        if (header) {
+          row[header] = cellValue;
+        }
+      }
+      if (Object.keys(row).length > 0) {
+        data.push(row);
+      }
+    }
 
-    // Get all existing leadIds in one query
-    const existingLeadIds = new Set(
-      (await Lead.find({}, 'leadId').lean()).map(lead => lead.leadId)
-    );
+    console.log('Total rows parsed:', data.length);
+    console.log('Sample row:', data[0]); // Debug log
+
+    // Get all existing leadIds and find max sequence
+    const existingLeads = await Lead.find({}, 'leadId uploadSequence').lean();
+    const existingLeadIds = new Set(existingLeads.map(lead => lead.leadId));
+    const maxSequence = existingLeads.length > 0 ? Math.max(...existingLeads.map(lead => lead.uploadSequence || 0)) : 0;
 
     const leadsToInsert = [];
     const errors = [];
+    const skipped = [];
+    let currentSequence = maxSequence + 1;
 
-    // Process data in batches
+    // Process data in original Excel order
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
-      const leadId = row.id || row.leadId;
       
-      if (!leadId || !row.name || !row.email) {
-        errors.push(`Row ${i + 1}: Missing required fields (id, name, email)`);
+      // Normalize column names (handle case variations)
+      const normalizedRow = {};
+      Object.keys(row).forEach(key => {
+        const normalizedKey = key.toLowerCase().trim();
+        normalizedRow[normalizedKey] = typeof row[key] === 'string' ? row[key].trim() : row[key];
+      });
+      
+      // Extract leadId from multiple possible column names
+      const leadId = normalizedRow.id || normalizedRow.leadid || normalizedRow['lead id'] || normalizedRow.leadId;
+      const name = normalizedRow.name;
+      const email = normalizedRow.email;
+      
+      // Skip empty rows
+      if (!leadId && !name && !email) {
+        continue;
+      }
+      
+      // Validate required fields
+      if (!leadId) {
+        errors.push(`Row ${i + 2}: Missing Lead ID (column: id or leadId)`);
+        continue;
+      }
+      
+      if (!name) {
+        errors.push(`Row ${i + 2}: Missing Name`);
+        continue;
+      }
+      
+      if (!email) {
+        errors.push(`Row ${i + 2}: Missing Email`);
+        continue;
+      }
+      
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        errors.push(`Row ${i + 2}: Invalid email format: ${email}`);
         continue;
       }
 
+      // Check for duplicates
       if (existingLeadIds.has(leadId)) {
-        errors.push(`Row ${i + 1}: Lead with ID ${leadId} already exists`);
+        skipped.push(`Row ${i + 2}: Lead ID ${leadId} already exists`);
         continue;
+      }
+
+      // Parse date if provided
+      let lastVerifiedAt = null;
+      if (normalizedRow.lastverifiedat || normalizedRow['last verified at']) {
+        const dateStr = normalizedRow.lastverifiedat || normalizedRow['last verified at'];
+        const parsedDate = new Date(dateStr);
+        if (!isNaN(parsedDate.getTime())) {
+          lastVerifiedAt = parsedDate;
+        }
       }
 
       leadsToInsert.push({
-        leadId,
-        name: row.name,
-        email: row.email,
-        linkedin: row.linkedin,
-        lastVerifiedAt: row.lastVerifiedAt ? new Date(row.lastVerifiedAt) : null,
-        phone: row.phone,
-        facebookLink: row.facebookLink,
-        websiteLink: row.websiteLink,
-        googleMapLink: row.googleMapLink,
-        instagram: row.instagram,
-        addressStreet: row.addressStreet,
-        city: row.city,
-        country: row.country,
-        category: row.category
+        leadId: leadId.toString(),
+        name: name.toString(),
+        email: email.toLowerCase(),
+        phone: normalizedRow.phone || null,
+        category: normalizedRow.category || null,
+        city: normalizedRow.city || null,
+        country: normalizedRow.country || null,
+        addressStreet: normalizedRow.addressstreet || normalizedRow['address street'] || null,
+        linkedin: normalizedRow.linkedin || null,
+        facebookLink: normalizedRow.facebooklink || normalizedRow['facebook link'] || null,
+        websiteLink: normalizedRow.websitelink || normalizedRow['website link'] || null,
+        googleMapLink: normalizedRow.googlemaplink || normalizedRow['google map link'] || null,
+        instagram: normalizedRow.instagram || null,
+        lastVerifiedAt,
+        uploadSequence: currentSequence++
       });
     }
 
-    // Bulk insert in chunks of 1000
-    const chunkSize = 1000;
+    // Insert leads in sequence order (ordered: true to maintain sequence)
     let totalInserted = 0;
     
-    for (let i = 0; i < leadsToInsert.length; i += chunkSize) {
-      const chunk = leadsToInsert.slice(i, i + chunkSize);
+    if (leadsToInsert.length > 0) {
       try {
-        await Lead.insertMany(chunk, { ordered: false });
-        totalInserted += chunk.length;
+        // Use ordered insertion to maintain sequence
+        const result = await Lead.insertMany(leadsToInsert, { ordered: true });
+        totalInserted = result.length;
       } catch (error) {
-        // Handle duplicate key errors
+        // Handle errors while maintaining sequence
         if (error.code === 11000) {
-          totalInserted += chunk.length - error.writeErrors?.length || 0;
+          // Handle duplicate key errors
+          const insertedCount = error.insertedDocs?.length || 0;
+          totalInserted = insertedCount;
+          
+          // Try inserting remaining documents one by one to maintain sequence
+          for (let i = insertedCount; i < leadsToInsert.length; i++) {
+            try {
+              await Lead.create(leadsToInsert[i]);
+              totalInserted++;
+            } catch (singleError) {
+              if (singleError.code === 11000) {
+                errors.push(`Duplicate leadId: ${leadsToInsert[i].leadId}`);
+              } else {
+                errors.push(`Error inserting ${leadsToInsert[i].leadId}: ${singleError.message}`);
+              }
+            }
+          }
         } else {
-          errors.push(`Batch ${Math.floor(i/chunkSize) + 1}: ${error.message}`);
+          errors.push(`Bulk insert error: ${error.message}`);
         }
       }
     }
 
     res.json({
-      message: `Successfully uploaded ${totalInserted} leads`,
+      message: `Upload completed: ${totalInserted} leads inserted`,
       uploaded: totalInserted,
+      skipped: skipped.length,
       errors: errors.length,
-      errorDetails: errors.slice(0, 50) // Limit error details to first 50
+      totalProcessed: data.length,
+      details: {
+        skippedDetails: skipped.slice(0, 10),
+        errorDetails: errors.slice(0, 10)
+      }
     });
   } catch (error) {
+    console.error('Upload error:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -96,7 +188,7 @@ export const getLeads = async (req, res) => {
     
     
     const leads = await Lead.find()
-      .sort({ createdAt: -1 })
+      .sort({ uploadSequence: -1, createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
     

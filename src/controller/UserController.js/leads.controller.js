@@ -1,4 +1,5 @@
 import { Lead, User } from "../../models/index.js";
+import * as XLSX from 'xlsx';
 
 // GET /api/auth/leads
 export const getLeads = async (req, res) => {
@@ -8,7 +9,7 @@ export const getLeads = async (req, res) => {
     const skip = (page - 1) * limit;
 
     const leads = await Lead.find({ isActive: true })
-      .sort({ createdAt: -1 })
+      .sort({ uploadSequence: -1, createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
 
@@ -364,6 +365,14 @@ export const getAccessedLeads = async (req, res) => {
         phone: lead.phone,
         websiteLink: lead.websiteLink,
         linkedin: lead.linkedin,
+        facebookLink: lead.facebookLink,
+        googleMapLink: lead.googleMapLink,
+        instagram: lead.instagram,
+        addressStreet: lead.addressStreet,
+        lastVerifiedAt: lead.lastVerifiedAt,
+        createdAt: lead.createdAt,
+        updatedAt: lead.updatedAt,
+        isAccessedByUser: true
       };
     }).filter(item => item !== null);
 
@@ -377,6 +386,130 @@ export const getAccessedLeads = async (req, res) => {
         hasPrev: page > 1
       }
     });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// POST /api/auth/leads/export
+export const exportLeadData = async (req, res) => {
+  try {
+    const { leadId } = req.body;
+    const userId = req.user.userId;
+
+    const lead = await Lead.findById(leadId);
+    if (!lead || !lead.isActive) {
+      return res.status(404).json({ error: 'Lead not found' });
+    }
+
+    const user = await User.findById(userId).select('accessedLeads');
+    const accessedLead = user?.accessedLeads?.find(item => 
+      item.leadId.toString() === leadId
+    );
+
+    if (!accessedLead) {
+      return res.status(403).json({ 
+        error: 'Lead not accessed',
+        message: 'You need to access this lead first to export data'
+      });
+    }
+
+    const leadData = {
+      'Lead ID': lead.leadId,
+      'Name': lead.name,
+      'Email': lead.email,
+      'Phone': lead.phone || 'N/A',
+      'Category': lead.category || 'N/A',
+      'City': lead.city || 'N/A',
+      'Country': lead.country || 'N/A',
+      'Address': lead.addressStreet || 'N/A',
+      'Website': lead.websiteLink || 'N/A',
+      'LinkedIn': lead.linkedin || 'N/A',
+      'Facebook': lead.facebookLink || 'N/A',
+      'Instagram': lead.instagram || 'N/A',
+      'Google Maps': lead.googleMapLink || 'N/A',
+      'Last Verified': lead.lastVerifiedAt ? new Date(lead.lastVerifiedAt).toLocaleDateString() : 'N/A',
+      'Accessed Date': new Date(accessedLead.accessedAt).toLocaleDateString()
+    };
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet([leadData]);
+    XLSX.utils.book_append_sheet(wb, ws, 'Lead Data');
+
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+    const filename = `lead_${lead.leadId}_${Date.now()}.xlsx`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    
+    res.send(buffer);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// POST /api/auth/leads/bulk-export
+export const bulkExportLeads = async (req, res) => {
+  try {
+    const { leadIds } = req.body;
+    const userId = req.user.userId;
+
+    if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
+      return res.status(400).json({ error: 'Lead IDs array is required' });
+    }
+
+    const user = await User.findById(userId).select('accessedLeads');
+    const accessedLeadIds = user?.accessedLeads?.map(item => item.leadId.toString()) || [];
+    
+    const validLeadIds = leadIds.filter(id => accessedLeadIds.includes(id));
+    
+    if (validLeadIds.length === 0) {
+      return res.status(403).json({ 
+        error: 'No accessible leads found',
+        message: 'You need to access leads first to export data'
+      });
+    }
+
+    const leads = await Lead.find({ 
+      _id: { $in: validLeadIds }, 
+      isActive: true 
+    });
+
+    const leadsData = leads.map(lead => {
+      const accessedLead = user.accessedLeads.find(item => 
+        item.leadId.toString() === lead._id.toString()
+      );
+      
+      return {
+        'Lead ID': lead.leadId,
+        'Name': lead.name,
+        'Email': lead.email,
+        'Phone': lead.phone || 'N/A',
+        'Category': lead.category || 'N/A',
+        'City': lead.city || 'N/A',
+        'Country': lead.country || 'N/A',
+        'Address': lead.addressStreet || 'N/A',
+        'Website': lead.websiteLink || 'N/A',
+        'LinkedIn': lead.linkedin || 'N/A',
+        'Facebook': lead.facebookLink || 'N/A',
+        'Instagram': lead.instagram || 'N/A',
+        'Google Maps': lead.googleMapLink || 'N/A',
+        'Last Verified': lead.lastVerifiedAt ? new Date(lead.lastVerifiedAt).toLocaleDateString() : 'N/A',
+        'Accessed Date': accessedLead ? new Date(accessedLead.accessedAt).toLocaleDateString() : 'N/A'
+      };
+    });
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(leadsData);
+    XLSX.utils.book_append_sheet(wb, ws, 'Leads Data');
+
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+    const filename = `leads_export_${Date.now()}.xlsx`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    
+    res.send(buffer);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

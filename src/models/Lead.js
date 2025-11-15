@@ -62,6 +62,10 @@ const leadSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  uploadSequence: {
+    type: Number,
+    default: 0
+  },
   isActive: {
     type: Boolean,
     default: true
