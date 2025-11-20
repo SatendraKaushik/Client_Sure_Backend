@@ -122,3 +122,63 @@ export const deleteCommentAdmin = async (req, res) => {
     });
   }
 };
+
+// Admin get leaderboard (no subscription check)
+export const getLeaderboardAdmin = async (req, res) => {
+  try {
+    console.log('Admin fetching leaderboard...');
+    
+    const leaderboard = await User.find({ points: { $gt: 0 } })
+      .select('name avatar points communityActivity')
+      .sort({ points: -1 })
+      .limit(50);
+
+    console.log(`Found ${leaderboard.length} users in leaderboard`);
+    res.json({ 
+      success: true,
+      leaderboard, 
+      count: leaderboard.length 
+    });
+  } catch (error) {
+    console.error('Error fetching admin leaderboard:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error fetching leaderboard', 
+      error: error.message 
+    });
+  }
+};
+
+// Admin get community stats (no subscription check)
+export const getCommunityStatsAdmin = async (req, res) => {
+  try {
+    console.log('Admin fetching community stats...');
+    
+    const stats = await Promise.all([
+      Feedback.countDocuments(),
+      Feedback.aggregate([{ $unwind: '$comments' }, { $count: 'total' }]),
+      Feedback.aggregate([{ $unwind: '$likes' }, { $count: 'total' }]),
+      User.countDocuments({ points: { $gt: 0 } })
+    ]);
+
+    const result = {
+      totalPosts: stats[0],
+      totalComments: stats[1][0]?.total || 0,
+      totalLikes: stats[2][0]?.total || 0,
+      activeMembers: stats[3]
+    };
+    
+    console.log('Community stats:', result);
+    res.json({
+      success: true,
+      ...result
+    });
+  } catch (error) {
+    console.error('Error fetching admin community stats:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error fetching community stats', 
+      error: error.message 
+    });
+  }
+};

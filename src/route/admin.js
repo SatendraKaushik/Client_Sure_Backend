@@ -9,7 +9,7 @@ import { createResource, getResources, getResource, updateResource, deleteResour
 import { uploadLeads, getLeads, getLead, updateLead, deleteLead } from '../controller/AdminController/leadController.js';
 import { getUsers, getUser, updateUserTokens } from '../controller/AdminController/userController.js';
 import { getAnalytics, getUserGrowthData, getRevenueData } from '../controller/AdminController/analyticsController.js';
-import { getAllPostsAdmin, deletePostAdmin, deleteCommentAdmin } from '../controller/AdminController/communityController.js';
+import { getAllPostsAdmin, deletePostAdmin, deleteCommentAdmin, getLeaderboardAdmin, getCommunityStatsAdmin } from '../controller/AdminController/communityController.js';
 
 const router = express.Router();
 
@@ -45,6 +45,10 @@ router.get('/analytics/revenue', authenticateAdmin, getRevenueData);
 router.get('/community/all', authenticateAdmin, getAllPostsAdmin);
 router.delete('/community/post/:postId', authenticateAdmin, deletePostAdmin);
 router.delete('/community/comment/:commentId', authenticateAdmin, deleteCommentAdmin);
+
+// Community data for admin dashboard
+router.get('/community/leaderboard', authenticateAdmin, getLeaderboardAdmin);
+router.get('/community/stats', authenticateAdmin, getCommunityStatsAdmin);
 
 // POST /api/admin/refresh-tokens - Manual token refresh (for testing)
 router.post('/refresh-tokens', authenticateToken, async (req, res) => {
