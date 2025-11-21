@@ -3,13 +3,14 @@ import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 import { Plan, Order, User } from '../models/index.js';
 import { createTransporter, sendEmailWithRetry } from '../utils/emailUtils.js';
+import { generateReferralCode, validateReferralCode, updateReferralStats } from '../utils/referralUtils.js';
 
 // Setup nodemailer transporter
 const transporter = createTransporter();
 
 export const createOrder = async (req, res) => {
   try {
-    const { planId, name, email, phone, planPrice, planName } = req.body;
+    const { planId, name, email, phone, planPrice, planName, referralCode } = req.body;
     console.log('Create order with data:', { planId, name, email, phone, planPrice, planName });
 
     // Validate required fields
@@ -56,10 +57,28 @@ export const createOrder = async (req, res) => {
       const saltRounds = 12;
       const passwordHash = await bcrypt.hash(email, saltRounds);
 
+      // Validate referral code if provided
+      let referrer = null;
+      if (referralCode) {
+        referrer = await validateReferralCode(referralCode);
+        if (!referrer) {
+          return res.status(400).json({ error: 'Invalid referral code' });
+        }
+      }
+
       // Generate reset token for welcome email
       const resetToken = crypto.randomBytes(32).toString('hex');
       const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
       const resetTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+      // Generate unique referral code for new user
+      let newReferralCode;
+      let isUnique = false;
+      while (!isUnique) {
+        newReferralCode = generateReferralCode();
+        const existingUser = await User.findOne({ referralCode: newReferralCode });
+        if (!existingUser) isUnique = true;
+      }
 
       // Calculate monthly allocation and dates based on plan
       const monthlyAllocation = plan.durationDays * plan.dailyTokens;
@@ -82,6 +101,13 @@ export const createOrder = async (req, res) => {
         monthlyTokensTotal: monthlyAllocation,
         monthlyTokensUsed: 0,
         monthlyTokensRemaining: monthlyAllocation,
+        referralCode: newReferralCode,
+        referredBy: referrer ? referrer._id : null,
+        referralStats: {
+          totalReferrals: 0,
+          activeReferrals: 0,
+          totalEarnings: 0
+        },
         subscription: {
           planId: plan._id,
           startDate: startDate,
@@ -93,6 +119,19 @@ export const createOrder = async (req, res) => {
 
       await user.save();
       console.log('New user registered:', user.email);
+
+      // Add referral relationship if referrer exists
+      if (referrer) {
+        referrer.referrals.push({
+          userId: user._id,
+          joinedAt: new Date(),
+          isActive: false,
+          subscriptionStatus: 'pending'
+        });
+        await referrer.save();
+        await updateReferralStats(referrer._id);
+        console.log(`Referral relationship created: ${user.email} -> ${referrer.email}`);
+      }
 
       // Send welcome email with password reset link
       const planInfo = { planId, planName: plan.name, planPrice: plan.price };
@@ -111,7 +150,8 @@ export const createOrder = async (req, res) => {
       userName: name.trim(),
       planId: plan._id,
       amount: plan.price, // Always use plan price from database
-      status: 'pending'
+      status: 'pending',
+      referralCode: referralCode || null
     });
     console.log('Order created with amount:', order.amount);
 

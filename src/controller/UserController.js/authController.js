@@ -5,6 +5,7 @@ import { v2 as cloudinary } from 'cloudinary';
 import { User } from '../../models/index.js';
 import Resource from '../../models/Resource.js';
 import { createTransporter, sendEmailWithRetry, sendPasswordResetConfirmationEmail, sendWelcomeEmail } from '../../utils/emailUtils.js';
+import { generateReferralCode, validateReferralCode, updateReferralStats } from '../../utils/referralUtils.js';
 
 // Configure Cloudinary
 cloudinary.config({
@@ -19,7 +20,7 @@ const transporter = createTransporter();
 // POST /api/auth/register
 export const register = async (req, res) => {
   try {
-    const { name, email, phone, planId, planName, planPrice } = req.body;
+    const { name, email, phone, planId, planName, planPrice, referralCode } = req.body;
     console.log('Registration form data:', { name, email, phone, planId, planName, planPrice });
     
     // Validate required fields
@@ -43,10 +44,28 @@ export const register = async (req, res) => {
     const saltRounds = 12;
     const passwordHash = await bcrypt.hash(email, saltRounds);
 
+    // Validate referral code if provided
+    let referrer = null;
+    if (referralCode) {
+      referrer = await validateReferralCode(referralCode);
+      if (!referrer) {
+        return res.status(400).json({ error: 'Invalid referral code' });
+      }
+    }
+
     // Generate reset token for welcome email
     const resetToken = crypto.randomBytes(32).toString('hex');
     const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
     const resetTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    // Generate unique referral code for new user
+    let newReferralCode;
+    let isUnique = false;
+    while (!isUnique) {
+      newReferralCode = generateReferralCode();
+      const existingUser = await User.findOne({ referralCode: newReferralCode });
+      if (!existingUser) isUnique = true;
+    }
 
     // Create new user with plan information
     const user = new User({
@@ -58,6 +77,13 @@ export const register = async (req, res) => {
       resetTokenExpires,
       tokens: 0,
       tokensUsedTotal: 0,
+      referralCode: newReferralCode,
+      referredBy: referrer ? referrer._id : null,
+      referralStats: {
+        totalReferrals: 0,
+        activeReferrals: 0,
+        totalEarnings: 0
+      },
       subscription: {
         planId: planId || null,
         dailyTokens: 0,
@@ -66,6 +92,18 @@ export const register = async (req, res) => {
     });
 
     await user.save();
+
+    // Add referral relationship if referrer exists
+    if (referrer) {
+      referrer.referrals.push({
+        userId: user._id,
+        joinedAt: new Date(),
+        isActive: false,
+        subscriptionStatus: 'pending'
+      });
+      await referrer.save();
+      await updateReferralStats(referrer._id);
+    }
 
     // Send welcome email with password reset link
     const planInfo = planId && planName && planPrice ? { planId, planName, planPrice } : null;

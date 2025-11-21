@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { Order, Plan, User } from '../models/index.js';
 import { sendPasswordSetupEmail } from './UserController.js/authController.js';
+import { processReferralReward } from '../utils/referralUtils.js';
 
 export const handleWebhook = async (req, res) => {
   try {
@@ -110,6 +111,12 @@ export const handleWebhook = async (req, res) => {
       }
 
       await user.save();
+
+      // Process referral reward if user was referred
+      if (user.referredBy) {
+        await processReferralReward(user._id, user.referredBy);
+        console.log(`Referral reward processed for user: ${user.email}`);
+      }
 
       // Send password setup email
       const isNewUser = !user.passwordHash;

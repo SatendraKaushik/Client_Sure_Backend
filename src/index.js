@@ -12,6 +12,7 @@ import resourcesRoute from "./route/resources.js";
 import leadsRoute from "./route/leads.js";
 import communityRoute from "./route/community.js";
 import notificationsRoute from "./route/notifications.js";
+import referralsRoute from "./route/referrals.js";
 import { startTokenRefreshCron } from "./services/cronJobs.js";
 // import { seedInitialData } from "./services/seedData.js"; // Disabled seed data
 
@@ -51,6 +52,7 @@ app.use("/api/resources", resourcesRoute);
 app.use("/api/leads", leadsRoute);
 app.use("/api/community", communityRoute);
 app.use("/api/notifications", notificationsRoute);
+app.use("/api/referrals", referralsRoute);
 app.use("/", dummyCheckoutRoute);
 
 app.listen(PORT,()=>{

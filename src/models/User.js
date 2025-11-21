@@ -173,6 +173,52 @@ const userSchema = new mongoose.Schema({
   unreadNotificationCount: {
     type: Number,
     default: 0
+  },
+  // Referral System Fields
+  referralCode: {
+    type: String,
+    unique: true,
+    sparse: true,
+    length: 12
+  },
+  referredBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: false
+  },
+  referrals: [{
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    joinedAt: {
+      type: Date,
+      default: Date.now
+    },
+    isActive: {
+      type: Boolean,
+      default: false
+    },
+    subscriptionStatus: {
+      type: String,
+      enum: ['pending', 'active', 'expired'],
+      default: 'pending'
+    }
+  }],
+  referralStats: {
+    totalReferrals: {
+      type: Number,
+      default: 0
+    },
+    activeReferrals: {
+      type: Number,
+      default: 0
+    },
+    totalEarnings: {
+      type: Number,
+      default: 0
+    }
   }
 }, {
   timestamps: true
