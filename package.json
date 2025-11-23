@@ -40,6 +40,8 @@
     "node-cron": "^3.0.3",
     "nodemailer": "^6.10.1",
     "nodemon": "^3.1.10",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "@google/generative-ai": "^0.24.1",
+    "node-fetch": "^3.3.2"
   }
 }

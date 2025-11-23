@@ -200,12 +200,12 @@ export const bulkAccessLeads = async (req, res) => {
       return res.status(400).json({ error: 'Lead IDs array is required' });
     }
 
-    // Limit to maximum 10 leads per request
-    if (leadIds.length > 10) {
+    // Limit to maximum 100 leads per request
+    if (leadIds.length > 100) {
       return res.status(400).json({ 
-        error: 'Maximum 10 leads allowed per request',
+        error: 'Maximum 100 leads allowed per request',
         requested: leadIds.length,
-        maximum: 10
+        maximum: 100
       });
     }
 
@@ -282,16 +282,21 @@ export const bulkAccessLeads = async (req, res) => {
       user.accessedLeads = user.accessedLeads.slice(0, 100);
     }
 
-    // Update leads' accessedBy arrays
-    const leadUpdatePromises = newLeads.map(lead => {
-      if (!lead.accessedBy.includes(userId)) {
-        lead.accessedBy.push(userId);
-        return lead.save();
-      }
-      return Promise.resolve();
-    });
+    // Batch update leads' accessedBy arrays for better performance
+    const leadsToUpdate = newLeads.filter(lead => !lead.accessedBy.includes(userId));
+    
+    if (leadsToUpdate.length > 0) {
+      await Lead.bulkWrite(
+        leadsToUpdate.map(lead => ({
+          updateOne: {
+            filter: { _id: lead._id },
+            update: { $addToSet: { accessedBy: userId } }
+          }
+        }))
+      );
+    }
 
-    await Promise.all([user.save(), ...leadUpdatePromises]);
+    await user.save();
 
     res.json({
       message: `Successfully accessed ${tokensRequired} leads`,
