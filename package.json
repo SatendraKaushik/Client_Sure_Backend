@@ -8,6 +8,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon ./src/index.js",
+    "build": "echo 'Build completed - Node.js project ready for deployment'",
     "start": "node ./src/index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "test:email": "node test-email.js",
