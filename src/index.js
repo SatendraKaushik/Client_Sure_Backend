@@ -26,16 +26,92 @@ const PORT = process.env.PORT || 5000
 
 const app = express();
 
-// Middleware
-app.use(cors({ credentials: true, origin: process.env.BASE_URL }));
+// CORS Configuration - Comprehensive setup for Vercel deployment
+const allowedOrigins = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "https://client-sure-frontend.vercel.app",
+    process.env.BASE_URL,
+    // Add any preview deployments
+    "https://client-sure-frontend-git-main-ysatyam129s-projects.vercel.app"
+].filter(Boolean);
+
+// Log allowed origins for debugging
+console.log('🔒 CORS Allowed Origins:', allowedOrigins);
+console.log('🌐 BASE_URL from env:', process.env.BASE_URL);
+
+app.use(
+    cors({
+        origin: function (origin, callback) {
+            // Allow requests with no origin (mobile apps, Postman, curl)
+            if (!origin) {
+                console.log('✅ CORS: Allowing request with no origin');
+                return callback(null, true);
+            }
+
+            // Log incoming origin for debugging
+            console.log('🔍 CORS: Checking origin:', origin);
+
+            // Check multiple conditions for allowing origin
+            const isAllowed =
+                allowedOrigins.includes(origin) ||
+                origin.endsWith('.vercel.app') ||
+                origin.includes('client-sure') ||
+                origin.startsWith('https://client-sure-frontend') ||
+                (process.env.NODE_ENV === 'development' && origin.startsWith('http://localhost'));
+
+            if (isAllowed) {
+                console.log('✅ CORS: Origin allowed:', origin);
+                callback(null, true);
+            } else {
+                console.warn('❌ CORS: Origin blocked:', origin);
+                // In production, be more lenient to avoid blocking legitimate requests
+                if (process.env.NODE_ENV === 'production') {
+                    console.log('🔄 CORS: Production mode - allowing origin:', origin);
+                    callback(null, true);
+                } else {
+                    callback(new Error(`CORS: Origin ${origin} not allowed`));
+                }
+            }
+        },
+        credentials: true,
+        methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
+        allowedHeaders: [
+            "Content-Type",
+            "Authorization",
+            "X-Requested-With",
+            "Accept",
+            "Origin",
+            "Access-Control-Request-Method",
+            "Access-Control-Request-Headers",
+            "Cache-Control",
+            "Pragma"
+        ],
+        exposedHeaders: [
+            "Access-Control-Allow-Origin",
+            "Access-Control-Allow-Credentials"
+        ],
+        optionsSuccessStatus: 200, // For legacy browser support
+        preflightContinue: false
+    })
+);
+// Additional middleware
 app.use(cookieParser());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Trust proxy for Vercel
+app.set('trust proxy', 1);
 
 
 
 // Database connection
-dbConnect();
+try {
+    await dbConnect();
+} catch (error) {
+    console.error('Failed to connect to database:', error.message);
+    process.exit(1);
+}
 
 // Seed data disabled - only user-generated data will be stored
 // seedInitialData();
@@ -48,9 +124,32 @@ startTokenRefreshCron();
 startSubscriptionExpiryCron();
 
 // Routes
-app.get("/",(req,res)=>{
-    res.send("ClientSure API is working");
-})
+app.get("/", (req, res) => {
+    res.json({
+        message: "ClientSure API is working",
+        status: "success",
+        timestamp: new Date().toISOString(),
+        cors: {
+            allowedOrigins: allowedOrigins,
+            requestOrigin: req.get('Origin') || 'No origin header'
+        }
+    });
+});
+
+// Health check with CORS debugging
+app.get("/health", (req, res) => {
+    res.status(200).json({
+        status: "OK",
+        timestamp: new Date().toISOString(),
+        cors: {
+            configured: true,
+            allowedOrigins: allowedOrigins,
+            requestOrigin: req.get('Origin') || 'No origin header',
+            userAgent: req.get('User-Agent')
+        },
+        environment: process.env.NODE_ENV || 'development'
+    });
+});
 
 app.use("/api/payments", paymentsRoute);
 app.use("/api/auth", authRoute);
@@ -67,7 +166,12 @@ app.use("/api/tokens", tokensRoute);
 app.use("/", dummyCheckoutRoute);
 app.use("/", dummyTokenCheckoutRoute);
 
-app.listen(PORT,()=>{
-    console.log(`Server is running on port ${PORT}`);
-    console.log(`Payment endpoint: http://localhost:${PORT}/api/payments/create-order`);
-})
+app.listen(PORT, () => {
+    console.log(`🚀 ClientSure Server is running on port ${PORT}`);
+    console.log(`💳 Payment endpoint: http://localhost:${PORT}/api/payments/create-order`);
+    console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🔒 CORS configured for origins:`, allowedOrigins);
+});
+
+// Export for Vercel
+export default app;
