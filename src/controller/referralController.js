@@ -1,5 +1,5 @@
 import { User } from '../models/index.js';
-import { validateReferralCode } from '../utils/referralUtils.js';
+import { validateReferralCode, getMilestoneProgress } from '../utils/referralUtils.js';
 
 // GET /api/referrals/validate/:code
 export const validateReferral = async (req, res) => {
@@ -80,6 +80,24 @@ export const getReferralStats = async (req, res) => {
     });
   } catch (error) {
     console.error('Get referral stats error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// GET /api/referrals/milestones
+export const getMilestones = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    const milestoneData = await getMilestoneProgress(userId);
+    
+    if (!milestoneData) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json(milestoneData);
+  } catch (error) {
+    console.error('Get milestones error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

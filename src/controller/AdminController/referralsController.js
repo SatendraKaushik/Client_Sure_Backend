@@ -1,5 +1,6 @@
 import User from '../../models/User.js';
 import Plan from '../../models/Plan.js';
+import { getCycleStatistics } from '../../utils/referralUtils.js';
 
 // GET /api/admin/referrals/analytics
 export const getReferralAnalytics = async (req, res) => {
@@ -22,6 +23,18 @@ export const getReferralAnalytics = async (req, res) => {
           referredUsers: [
             { $match: { referredBy: { $exists: true, $ne: null } } },
             { $count: 'count' }
+          ],
+          milestone8Cycles: [
+            { $group: { _id: null, total: { $sum: '$milestoneRewards.referral8Cycles' } } }
+          ],
+          milestone15Cycles: [
+            { $group: { _id: null, total: { $sum: '$milestoneRewards.referral15Cycles' } } }
+          ],
+          milestone25Cycles: [
+            { $group: { _id: null, total: { $sum: '$milestoneRewards.referral25Cycles' } } }
+          ],
+          totalMilestoneTokens: [
+            { $group: { _id: null, total: { $sum: '$milestoneRewards.totalTokensEarned' } } }
           ]
         }
       }
@@ -32,6 +45,15 @@ export const getReferralAnalytics = async (req, res) => {
     const activeReferrals = analytics.activeReferrals[0]?.total || 0;
     const referredUsers = analytics.referredUsers[0]?.count || 0;
     const conversionRate = totalReferrals > 0 ? ((activeReferrals / totalReferrals) * 100).toFixed(1) : 0;
+    
+    const milestone8Cycles = analytics.milestone8Cycles[0]?.total || 0;
+    const milestone15Cycles = analytics.milestone15Cycles[0]?.total || 0;
+    const milestone25Cycles = analytics.milestone25Cycles[0]?.total || 0;
+    const totalMilestoneTokens = analytics.totalMilestoneTokens[0]?.total || 0;
+    const totalCycles = milestone8Cycles + milestone15Cycles + milestone25Cycles;
+
+    // Get additional cycle statistics
+    const cycleStats = await getCycleStatistics();
 
     res.json({
       success: true,
@@ -40,7 +62,15 @@ export const getReferralAnalytics = async (req, res) => {
         totalReferrals,
         activeReferrals,
         referredUsers,
-        conversionRate: `${conversionRate}%`
+        conversionRate: `${conversionRate}%`,
+        cycles: {
+          total8Cycles: milestone8Cycles,
+          total15Cycles: milestone15Cycles,
+          total25Cycles: milestone25Cycles,
+          totalCycles: totalCycles,
+          totalTokensDistributed: totalMilestoneTokens,
+          averageCyclesPerUser: cycleStats?.avgCyclesPerUser?.toFixed(1) || '0.0'
+        }
       }
     });
   } catch (error) {

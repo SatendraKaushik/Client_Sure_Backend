@@ -191,7 +191,7 @@ const userSchema = new mongoose.Schema({
   notifications: [{
     type: {
       type: String,
-      enum: ['new_post', 'new_comment', 'post_like', 'post_unlike', 'prize_tokens_awarded', 'system'],
+      enum: ['new_post', 'new_comment', 'post_like', 'post_unlike', 'prize_tokens_awarded', 'milestone_reward', 'system'],
       required: true
     },
     message: {
@@ -221,6 +221,37 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  // Milestone Rewards System - Cycle Based (Repeatable)
+  milestoneRewards: {
+    referral8Cycles: {
+      type: Number,
+      default: 0
+    },
+    referral8LastReset: {
+      type: Date,
+      required: false
+    },
+    referral15Cycles: {
+      type: Number,
+      default: 0
+    },
+    referral15LastReset: {
+      type: Date,
+      required: false
+    },
+    referral25Cycles: {
+      type: Number,
+      default: 0
+    },
+    referral25LastReset: {
+      type: Date,
+      required: false
+    },
+    totalTokensEarned: {
+      type: Number,
+      default: 0
+    }
+  },
   // Referral System Fields
   referralCode: {
     type: String,
@@ -249,7 +280,7 @@ const userSchema = new mongoose.Schema({
     },
     subscriptionStatus: {
       type: String,
-      enum: ['pending', 'active', 'expired'],
+      enum: ['pending', 'active', 'expired', 'cycled'],
       default: 'pending'
     }
   }],

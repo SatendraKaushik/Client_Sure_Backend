@@ -22,7 +22,9 @@
     "migrate:users": "node migrate-users.js",
     "test:email:complete": "node test-email-complete.js",
     "test:all:fixes": "node test-all-fixes.js",
-    "test:renewal": "node test-plan-renewal.js"
+    "test:renewal": "node test-plan-renewal.js",
+    "test:milestones": "node test-milestone-system.js",
+    "migrate:milestones": "node migrate-milestone-system.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
