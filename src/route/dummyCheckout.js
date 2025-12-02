@@ -53,7 +53,7 @@ router.get('/dummy-checkout', (req, res) => {
                     ? 'https://client-sure-frontend.vercel.app'
                     : 'http://localhost:3000';
                 
-                const webhookUrl = `${backendUrl}/api/payments/webhook`;
+                const webhookUrl = backendUrl + '/api/payments/webhook';
                 
                 if (status === 'success') {
                     // Simulate successful payment webhook
@@ -77,7 +77,7 @@ router.get('/dummy-checkout', (req, res) => {
                         if (response.ok) {
                             alert('Payment Successful! Redirecting...');
                             const userEmail = localStorage.getItem('pendingUserEmail') || 'test@example.com';
-                            window.location.href = `${frontendUrl}/payment-success?email=` + encodeURIComponent(userEmail);
+                            window.location.href = frontendUrl + '/payment-success?email=' + encodeURIComponent(userEmail);
                         } else {
                             alert('Payment processing failed');
                         }

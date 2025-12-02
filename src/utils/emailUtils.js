@@ -1,4 +1,9 @@
 import nodemailer from 'nodemailer';
+import dotenv from 'dotenv';
+
+
+dotenv.config()
+
 
 /**
  * Create and verify SMTP transporter
