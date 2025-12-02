@@ -32,7 +32,7 @@ export const adminLogin = async (req, res) => {
 
     res.json({ 
       message: 'Login successful',
-      token: token // Send token in response for localStorage
+      token: token
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
