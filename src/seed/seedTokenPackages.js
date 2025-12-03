@@ -1,11 +1,19 @@
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import TokenPackage from '../models/TokenPackage.js';
 import dbConnect from '../config/db.js';
+
+// Load .env from root directory
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+dotenv.config({ path: join(__dirname, '../../.env') });
 
 const tokenPackages = [
   {
     name: 'Emergency Boost',
-    tokens: 25,
-    price: 15,
+    tokens: 100,
+    price: 149,
     description: 'Quick token boost for urgent needs',
     isActive: true,
     isPopular: false,
@@ -18,8 +26,8 @@ const tokenPackages = [
   },
   {
     name: 'Standard Pack',
-    tokens: 50,
-    price: 25,
+    tokens: 300,
+    price: 399,
     description: 'Perfect for moderate usage',
     isActive: true,
     isPopular: true,
@@ -32,8 +40,8 @@ const tokenPackages = [
   },
   {
     name: 'Value Pack',
-    tokens: 100,
-    price: 45,
+    tokens: 700,
+    price: 799,
     description: 'Best value for heavy users',
     isActive: true,
     isPopular: false,
@@ -46,8 +54,8 @@ const tokenPackages = [
   },
   {
     name: 'Power Pack',
-    tokens: 200,
-    price: 80,
+    tokens: 2000,
+    price: 1999,
     description: 'Maximum tokens for power users',
     isActive: true,
     isPopular: false,
@@ -61,6 +69,34 @@ const tokenPackages = [
 ];
 
 export const seedTokenPackages = async () => {
+  try {
+    await dbConnect();
+    
+    // Check if packages already exist
+    const existingCount = await TokenPackage.countDocuments();
+    if (existingCount > 0) {
+      console.log(`Token packages already exist (${existingCount} packages). Skipping seed.`);
+      console.log('To force re-seed, manually delete packages first or use seedTokenPackagesForce()');
+      return await TokenPackage.find().sort({ sortOrder: 1 });
+    }
+    
+    // Insert new packages only if none exist
+    const createdPackages = await TokenPackage.insertMany(tokenPackages);
+    console.log(`Created ${createdPackages.length} token packages:`);
+    
+    createdPackages.forEach(pkg => {
+      console.log(`- ${pkg.name}: ${pkg.tokens} tokens for ₹${pkg.price} (₹${(pkg.price/pkg.tokens).toFixed(2)}/token)`);
+    });
+    
+    return createdPackages;
+  } catch (error) {
+    console.error('Error seeding token packages:', error);
+    throw error;
+  }
+};
+
+// Force seed - deletes existing and recreates (use with caution)
+export const seedTokenPackagesForce = async () => {
   try {
     await dbConnect();
     
@@ -84,7 +120,7 @@ export const seedTokenPackages = async () => {
 };
 
 // Run seeder if called directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1]?.includes('seedTokenPackages')) {
   seedTokenPackages()
     .then(() => {
       console.log('Token packages seeded successfully');
