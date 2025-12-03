@@ -117,8 +117,9 @@ try {
 // Seed data disabled - only user-generated data will be stored
 // seedInitialData();
 
-// Seed token packages on startup
-seedTokenPackages().catch(console.error);
+// Seed token packages on startup - DISABLED to prevent data reset on every deployment
+// Run manually using: node src/seed/seedTokenPackages.js
+// seedTokenPackages().catch(console.error);
 
 // Start cron jobs
 startTokenRefreshCron();
@@ -166,6 +167,7 @@ app.use("/api/tokens", tokensRoute);
 
 app.use("/", dummyCheckoutRoute);
 app.use("/", dummyTokenCheckoutRoute);
+
 
 app.listen(PORT, () => {
     console.log(`🚀 ClientSure Server is running on port ${PORT}`);

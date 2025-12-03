@@ -1,6 +1,8 @@
 import { Lead, User } from "../../models/index.js";
+import EmailFeedback from '../../models/EmailFeedback.js';
 import * as XLSX from 'xlsx';
 import { calculateEffectiveTokens, deductTokensWithPriority, cleanExpiredTokens } from '../../utils/tokenUtils.js';
+import { createTransporter, sendEmailWithRetry } from '../../utils/emailUtils.js';
 
 // GET /api/auth/leads
 export const getLeads = async (req, res) => {
@@ -541,6 +543,164 @@ export const bulkExportLeads = async (req, res) => {
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     
     res.send(buffer);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+
+// POST /api/auth/leads/send-email
+export const sendBulkEmail = async (req, res) => {
+  try {
+    const { subject, message, type, category, city, country, leadIds } = req.body;
+    const userId = req.user.userId;
+
+    if (!subject || !message || !type) {
+      return res.status(400).json({ error: 'Subject, message, and type are required' });
+    }
+
+    const user = await User.findById(userId).select('accessedLeads name email');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const accessedLeadIds = user.accessedLeads?.map(item => item.leadId.toString()) || [];
+    
+    if (accessedLeadIds.length === 0) {
+      return res.status(400).json({ error: 'No accessed leads found' });
+    }
+
+    let query = { _id: { $in: accessedLeadIds }, isActive: true };
+    let filterCriteria = {};
+
+    if (type === 'category' && category) {
+      query.category = category;
+      filterCriteria.category = category;
+    } else if (type === 'city' && city) {
+      query.city = city;
+      filterCriteria.city = city;
+    } else if (type === 'country' && country) {
+      query.country = country;
+      filterCriteria.country = country;
+    } else if (type === 'selected' && leadIds && leadIds.length > 0) {
+      query._id = { $in: leadIds.filter(id => accessedLeadIds.includes(id)) };
+    }
+
+    const leads = await Lead.find(query);
+
+    if (leads.length === 0) {
+      return res.status(400).json({ error: 'No leads found matching criteria' });
+    }
+
+    const transporter = createTransporter();
+    if (!transporter) {
+      return res.status(500).json({ error: 'Email service not available' });
+    }
+
+    const recipients = [];
+    let successCount = 0;
+    let failedCount = 0;
+
+    for (const lead of leads) {
+      try {
+        const mailOptions = {
+          from: `"${user.name}" <${process.env.SMTP_USER}>`,
+          to: lead.email,
+          subject: subject,
+          html: `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            </head>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <div style="background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                <h2 style="color: #007cba;">Hello ${lead.name},</h2>
+                <div style="margin: 20px 0;">
+                  ${message.replace(/\n/g, '<br>')}
+                </div>
+                <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; color: #888; font-size: 12px;">
+                  <p>This email was sent by ${user.name} via ClientSure.</p>
+                  <p>© ${new Date().getFullYear()} ClientSure. All rights reserved.</p>
+                </div>
+              </div>
+            </body>
+            </html>
+          `
+        };
+
+        await sendEmailWithRetry(transporter, mailOptions, 2);
+        recipients.push({
+          leadId: lead._id,
+          email: lead.email,
+          name: lead.name,
+          status: 'sent'
+        });
+        successCount++;
+      } catch (error) {
+        console.error(`Failed to send email to ${lead.email}:`, error.message);
+        recipients.push({
+          leadId: lead._id,
+          email: lead.email,
+          name: lead.name,
+          status: 'failed'
+        });
+        failedCount++;
+      }
+    }
+
+    const emailFeedback = new EmailFeedback({
+      userId,
+      subject,
+      message,
+      emailType: type,
+      filterCriteria,
+      recipients,
+      totalRecipients: leads.length,
+      successCount,
+      failedCount
+    });
+
+    await emailFeedback.save();
+
+    res.json({
+      message: `Emails sent successfully to ${successCount} out of ${leads.length} leads`,
+      totalRecipients: leads.length,
+      successCount,
+      failedCount,
+      emailFeedbackId: emailFeedback._id
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// GET /api/leads/email-feedback
+export const getEmailFeedback = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { page = 1, limit = 10 } = req.query;
+
+    const skip = (page - 1) * limit;
+    const total = await EmailFeedback.countDocuments({ userId });
+
+    const emailFeedbacks = await EmailFeedback.find({ userId })
+      .sort({ sentAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .select('-recipients');
+
+    res.json({
+      emailFeedbacks,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / limit),
+        totalItems: total,
+        hasNext: skip + emailFeedbacks.length < total,
+        hasPrev: page > 1
+      }
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
