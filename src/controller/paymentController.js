@@ -194,7 +194,9 @@ export const createOrder = async (req, res) => {
     // Return response
     res.json({
       success: true,
+      orderId: order.clientOrderId,
       clientOrderId: order.clientOrderId,
+      paymentPayload: paymentPayload,
       payload: paymentPayload,
       user: {
         id: user._id,

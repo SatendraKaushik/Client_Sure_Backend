@@ -5,10 +5,15 @@ import { processReferralReward } from '../utils/referralUtils.js';
 
 export const handleWebhook = async (req, res) => {
   try {
+    console.log('🔔 Webhook received - Headers:', req.headers);
+    console.log('🔔 Webhook received - Body:', req.body);
+    
     const rawBody = JSON.stringify(req.body);
     
     // Verify signature (allow dummy signature for testing)
     const signature = req.headers['x-signature'];
+    console.log('🔐 Signature check:', { signature, nodeEnv: process.env.NODE_ENV });
+    
     if (process.env.NODE_ENV === 'production' && signature && signature !== 'dummy-signature-dev') {
       const expected = crypto
         .createHmac('sha256', process.env.WEBHOOK_SECRET || 'default-secret')
@@ -16,13 +21,13 @@ export const handleWebhook = async (req, res) => {
         .digest('hex');
       
       if (expected !== signature) {
-        console.log('Invalid webhook signature');
-        return res.status(400).end();
+        console.log('❌ Invalid webhook signature');
+        return res.status(400).json({ error: 'Invalid signature' });
       }
     }
 
     const event = req.body;
-    console.log('Webhook received:', event.type);
+    console.log('✅ Webhook processing event:', event.type, event.data);
 
     // Handle payment success
     if (event.type === 'payment.success') {
@@ -155,7 +160,12 @@ export const handleWebhook = async (req, res) => {
     }
 
   } catch (error) {
-    console.error('Webhook error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('❌ Webhook error:', error);
+    console.error('❌ Error stack:', error.stack);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };

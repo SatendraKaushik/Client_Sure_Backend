@@ -29,8 +29,10 @@ const app = express();
 // CORS Configuration - Comprehensive setup for Vercel deployment
 const allowedOrigins = [
     "http://localhost:3000",
+    "http://localhost:5000", // Add backend localhost for dummy checkout
     "http://localhost:5173",
     "https://client-sure-frontend.vercel.app",
+    "https://client-sure-backend.vercel.app", // Add backend production URL
     process.env.BASE_URL,
     // Add any preview deployments
     "https://client-sure-frontend-git-main-ysatyam129s-projects.vercel.app"
@@ -166,7 +168,7 @@ app.use("/api/compose", composeRoute);
 app.use("/api/tokens", tokensRoute);
 
 app.use("/", dummyCheckoutRoute);
-app.use("/", dummyTokenCheckoutRoute);
+app.use("/api", dummyTokenCheckoutRoute);
 
 
 app.listen(PORT, () => {

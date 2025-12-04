@@ -214,3 +214,52 @@ export const getCommunityStatsAdmin = async (req, res) => {
     });
   }
 };
+
+// Fix leaderboard sync
+export const fixLeaderboardSync = async (req, res) => {
+  try {
+    console.log('Admin fixing leaderboard sync...');
+    
+    const users = await User.find({});
+    let fixedCount = 0;
+
+    for (const user of users) {
+      const userPosts = await Feedback.find({ user_id: user._id });
+      const userComments = await Feedback.find({ 'comments.user_id': user._id });
+      const userLikes = await Feedback.find({ 'likes.user_id': user._id });
+
+      let totalComments = 0;
+      for (const post of userComments) {
+        totalComments += post.comments.filter(comment => 
+          comment.user_id.toString() === user._id.toString()
+        ).length;
+      }
+
+      const correctPoints = (userPosts.length * 5) + (totalComments * 2) + (userLikes.length * 1);
+
+      if (user.points !== correctPoints) {
+        await User.findByIdAndUpdate(user._id, {
+          points: correctPoints,
+          'communityActivity.postsCreated': userPosts.length,
+          'communityActivity.commentsMade': totalComments,
+          'communityActivity.likesGiven': userLikes.length
+        });
+        fixedCount++;
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Leaderboard sync completed. Fixed ${fixedCount} users.`,
+      usersProcessed: users.length,
+      usersFixed: fixedCount
+    });
+  } catch (error) {
+    console.error('Error fixing leaderboard sync:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fixing leaderboard sync',
+      error: error.message
+    });
+  }
+};

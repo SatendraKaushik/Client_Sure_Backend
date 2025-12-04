@@ -1,11 +1,13 @@
 import express from 'express';
+import crypto from 'crypto';
 // import { login, register, requestReset, resetPassword, logout, accessResource, getAccessedResources, getUserProfile } from '../controller/authController.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { upload } from '../middleware/upload.js';
 import { getUserProfile, login, logout, register, requestReset, resetPassword, updateUserProfile } from '../controller/UserController.js/authController.js';
 import { accessResource, getAccessedResourceById, getAccessedResources } from '../controller/UserController.js/resources.controller.js';
 // leads
-import { getLeads, accessLead, getAccessedLeads, getAccessedLeadById, bulkAccessLeads, exportLeadData, bulkExportLeads } from '../controller/UserController.js/leads.controller.js';
+import { getLeads, accessLead, getAccessedLeads, getAccessedLeadById, bulkAccessLeads, exportLeadData, bulkExportLeads, sendBulkEmail } from '../controller/UserController.js/leads.controller.js';
+import { User } from '../models/index.js';
 
 const router = express.Router();
 
@@ -20,6 +22,39 @@ router.post('/logout', logout);
 
 // POST /api/auth/request-reset
 router.post('/request-reset', requestReset);
+
+// GET /api/auth/reset/:token - Validate reset token
+router.get('/reset/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    if (!token) {
+      return res.status(400).json({ error: 'Reset token is required' });
+    }
+
+    // Hash the incoming token to match stored hash
+    const resetTokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Find user by token hash and check expiry
+    const user = await User.findOne({
+      resetTokenHash: resetTokenHash,
+      resetTokenExpires: { $gt: new Date() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    }
+
+    res.json({ 
+      valid: true,
+      email: user.email,
+      message: 'Token is valid' 
+    });
+  } catch (error) {
+    console.error('Token validation error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 // POST /api/auth/reset/:token
 router.post('/reset/:token', resetPassword);
@@ -61,6 +96,9 @@ router.post('/leads/export', authenticateToken, exportLeadData);
 
 // POST /api/auth/leads/bulk-export
 router.post('/leads/bulk-export', authenticateToken, bulkExportLeads);
+
+// POST /api/auth/leads/send-email
+router.post('/leads/send-email', authenticateToken, sendBulkEmail);
 
 
 

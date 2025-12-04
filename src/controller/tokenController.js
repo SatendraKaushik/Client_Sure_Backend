@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { User } from '../models/index.js';
 import TokenPackage from '../models/TokenPackage.js';
 import TokenTransaction from '../models/TokenTransaction.js';
+import { createNotification } from '../utils/notificationUtils.js';
 
 /**
  * Get available token packages
@@ -217,6 +218,18 @@ export const processTokenPurchase = async (req, res) => {
       await user.save({ session });
 
       await session.commitTransaction();
+
+      // Create notification for successful token purchase
+      const tokenPackage = await TokenPackage.findById(transaction.packageId);
+      const notificationMessage = `🎉 Token purchase successful! ${transaction.tokens} tokens from ${tokenPackage.name} package have been added to your account.`;
+      
+      await createNotification(
+        user._id,
+        'token_purchase',
+        notificationMessage,
+        null,
+        null
+      );
 
       console.log(`Tokens credited: ${transaction.tokens} tokens to ${user.email}`);
 

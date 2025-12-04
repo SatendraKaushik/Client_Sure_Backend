@@ -335,7 +335,16 @@ export const resetPassword = async (req, res) => {
     const { token } = req.params;
     const { password } = req.body;
 
+    console.log('🔑 Reset password attempt:', { 
+      token: token?.substring(0, 10) + '...', 
+      hasPassword: !!password,
+      tokenLength: token?.length 
+    });
     
+    if (!token) {
+      return res.status(400).json({ error: 'Reset token is required' });
+    }
+
     if (!password) {
       return res.status(400).json({ error: 'Password is required' });
     }
@@ -346,6 +355,7 @@ export const resetPassword = async (req, res) => {
 
     // Hash the incoming token to match stored hash
     const resetTokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    console.log('🔍 Looking for token hash:', resetTokenHash.substring(0, 10) + '...');
 
     // Find user by token hash and check expiry
     const user = await User.findOne({
@@ -354,8 +364,17 @@ export const resetPassword = async (req, res) => {
     });
 
     if (!user) {
+      console.log('❌ No user found with valid token');
+      // Check if token exists but expired
+      const expiredUser = await User.findOne({ resetTokenHash: resetTokenHash });
+      if (expiredUser) {
+        console.log('⏰ Token found but expired for user:', expiredUser.email);
+        return res.status(400).json({ error: 'Reset token has expired. Please request a new password reset.' });
+      }
       return res.status(400).json({ error: 'Invalid or expired reset token' });
     }
+
+    console.log('✅ Valid token found for user:', user.email);
 
     // Hash new password
     const saltRounds = 12;

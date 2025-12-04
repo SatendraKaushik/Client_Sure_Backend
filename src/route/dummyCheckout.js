@@ -88,17 +88,23 @@ router.get('/dummy-checkout', async (req, res) => {
                                 orderType: '${orderType}'
                             }
                         })
-                    }).then(response => {
+                    }).then(async response => {
+                        console.log('Webhook response status:', response.status);
+                        const responseText = await response.text();
+                        console.log('Webhook response:', responseText);
+                        
                         if (response.ok) {
                             alert('Payment Successful! Redirecting...');
                             const userEmail = localStorage.getItem('pendingUserEmail') || 'test@example.com';
                             window.location.href = frontendUrl + '/payment-success?email=' + encodeURIComponent(userEmail);
                         } else {
-                            alert('Payment processing failed');
+                            console.error('Webhook failed with status:', response.status);
+                            console.error('Response body:', responseText);
+                            alert('Payment processing failed: ' + response.status + ' - ' + responseText);
                         }
                     }).catch(err => {
                         console.error('Webhook error:', err);
-                        alert('Error processing payment');
+                        alert('Error processing payment: ' + err.message);
                     });
                 } else {
                     alert('Payment Failed! Please try again.');

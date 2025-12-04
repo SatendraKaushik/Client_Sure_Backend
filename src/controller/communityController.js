@@ -254,6 +254,14 @@ export const likePost = async (req, res) => {
     post.likes.push({ user_id: userId });
     await post.save();
 
+    // Add points for liking (1 point)
+    await User.findByIdAndUpdate(userId, {
+      $inc: { 
+        points: 1,
+        'communityActivity.likesGiven': 1
+      }
+    });
+
     // Increment daily like count
     await incrementDailyCount(userId, 'likes');
     
@@ -318,6 +326,14 @@ export const unlikePost = async (req, res) => {
     console.log('✅ Removing like at index:', likeIndex);
     post.likes.splice(likeIndex, 1);
     await post.save();
+
+    // Deduct points for unliking (1 point)
+    await User.findByIdAndUpdate(userId, {
+      $inc: { 
+        points: -1,
+        'communityActivity.likesGiven': -1
+      }
+    });
 
     console.log('Total likes after:', post.likes.length);
     console.log('=== UNLIKE REQUEST END ===');

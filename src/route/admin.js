@@ -9,7 +9,7 @@ import { createResource, getResources, getResource, updateResource, deleteResour
 import { uploadLeads, getLeads, getLead, updateLead, deleteLead } from '../controller/AdminController/leadController.js';
 import { getUsers, getUser, updateUserTokens } from '../controller/AdminController/userController.js';
 import { getAnalytics, getUserGrowthData, getRevenueData } from '../controller/AdminController/analyticsController.js';
-import { getAllPostsAdmin, deletePostAdmin, deleteCommentAdmin, getLeaderboardAdmin, getCommunityStatsAdmin } from '../controller/AdminController/communityController.js';
+import { getAllPostsAdmin, deletePostAdmin, deleteCommentAdmin, getLeaderboardAdmin, getCommunityStatsAdmin, fixLeaderboardSync } from '../controller/AdminController/communityController.js';
 import { awardPrizeTokens, getUserTokenStatus } from '../controller/AdminController/prizeTokenController.js';
 import { getReferralAnalytics, getReferrers, getReferredUsers, getReferrerDetails } from '../controller/AdminController/referralsController.js';
 
@@ -51,6 +51,7 @@ router.delete('/community/comment/:commentId', authenticateAdmin, deleteCommentA
 // Community data for admin dashboard
 router.get('/community/leaderboard', authenticateAdmin, getLeaderboardAdmin);
 router.get('/community/stats', authenticateAdmin, getCommunityStatsAdmin);
+router.post('/community/fix-sync', authenticateAdmin, fixLeaderboardSync);
 
 // Prize token management
 router.post('/award-prize-tokens', authenticateAdmin, awardPrizeTokens);

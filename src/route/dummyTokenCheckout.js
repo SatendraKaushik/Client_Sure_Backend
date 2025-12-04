@@ -105,22 +105,18 @@ router.get('/dummy-token-checkout', async (req, res) => {
                 : 'https://client-sure-frontend.vercel.app';
               
               if (status === 'success' && result.success) {
-                alert('🎉 Payment Successful! ${tokenTransaction.packageId.tokens} tokens added to your account.');
-                window.location.href = frontendUrl + '/user/profile/tokens';
+                window.location.href = frontendUrl + '/user/profile/tokens?purchase=success&tokens=${tokenTransaction.packageId.tokens}';
               } else if (status === 'failed') {
-                alert('❌ Payment Cancelled');
-                window.location.href = frontendUrl + '/user/profile/tokens';
+                window.location.href = frontendUrl + '/user/profile/tokens?purchase=cancelled';
               } else {
-                alert('❌ Payment Failed: ' + (result.message || 'Unknown error'));
-                window.location.href = frontendUrl + '/user/profile/tokens';
+                window.location.href = frontendUrl + '/user/profile/tokens?purchase=failed';
               }
             } catch (error) {
               console.error('Payment error:', error);
-              alert('❌ Payment processing failed');
               const frontendUrl = window.location.hostname === 'localhost' 
                 ? 'http://localhost:3000'
                 : 'https://client-sure-frontend.vercel.app';
-              window.location.href = frontendUrl + '/user/profile/tokens';
+              window.location.href = frontendUrl + '/user/profile/tokens?purchase=error';
             }
           }
         </script>
