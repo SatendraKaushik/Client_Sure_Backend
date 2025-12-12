@@ -635,6 +635,7 @@ export const sendBulkEmail = async (req, res) => {
 
     for (const lead of leads) {
       try {
+        const trackingId = `${userId}_${lead._id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const mailOptions = {
           from: `"${user.name}" <${process.env.SMTP_USER}>`,
           to: lead.email,
@@ -648,7 +649,7 @@ export const sendBulkEmail = async (req, res) => {
             </head>
             <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
               <div style="background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-                <h2 style="color: #007cba;">Hello ${lead.name},</h2>
+                <h2 style="color: #007cba;">HI ${lead.name},</h2>
                 <div style="margin: 20px 0;">
                   ${message.replace(/\n/g, '<br>')}
                 </div>
@@ -657,6 +658,7 @@ export const sendBulkEmail = async (req, res) => {
                   <p>© ${new Date().getFullYear()} ClientSure. All rights reserved.</p>
                 </div>
               </div>
+              <img src="${process.env.BASE_URL || 'http://localhost:5000'}/api/admin/emails?trackingId=${trackingId}" width="1" height="1" style="display:none" />
             </body>
             </html>
           `
@@ -667,7 +669,8 @@ export const sendBulkEmail = async (req, res) => {
           leadId: lead._id,
           email: lead.email,
           name: lead.name,
-          status: 'sent'
+          status: 'sent',
+          trackingId
         });
         successCount++;
       } catch (error) {
@@ -676,7 +679,8 @@ export const sendBulkEmail = async (req, res) => {
           leadId: lead._id,
           email: lead.email,
           name: lead.name,
-          status: 'failed'
+          status: 'failed',
+          errorMessage: error.message
         });
         failedCount++;
       }
@@ -684,6 +688,8 @@ export const sendBulkEmail = async (req, res) => {
 
     const emailFeedback = new EmailFeedback({
       userId,
+      userName: user.name,
+      userEmail: user.email,
       subject,
       message,
       emailType: type,
@@ -737,6 +743,7 @@ export const getEmailFeedback = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
 
 
 // GET /api/auth/leads/filter-options

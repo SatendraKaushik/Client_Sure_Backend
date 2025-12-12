@@ -98,7 +98,7 @@ export const sendPasswordResetConfirmationEmail = async (user) => {
           </div>
           
           <div style="background: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-            <h2 style="color: #007cba;">Hello ${user.name},</h2>
+            <h2 style="color: #007cba;">HI ${user.name},</h2>
             
             <p>Your password has been successfully reset for your ClientSure account.</p>
             
@@ -171,7 +171,7 @@ export const sendWelcomeEmail = async (user, resetToken, planInfo = null) => {
           </div>
           
           <div style="background: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-            <h2 style="color: #007cba;">Hello ${user.name},</h2>
+            <h2 style="color: #007cba;">HI ${user.name},</h2>
             
             <p>Welcome to ClientSure! Your account has been created successfully.</p>
             
@@ -286,7 +286,7 @@ export const sendRepurchaseEmail = async (user) => {
           </div>
           
           <div style="background: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-            <h2 style="color: #ff6b6b;">Hello ${user.name},</h2>
+            <h2 style="color: #ff6b6b;">HI ${user.name},</h2>
             
             <p>Your monthly plan tokens are running low! 🎯</p>
             

@@ -6,6 +6,14 @@ const emailFeedbackSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  userName: {
+    type: String,
+    required: true
+  },
+  userEmail: {
+    type: String,
+    required: true
+  },
   subject: {
     type: String,
     required: true,
@@ -37,7 +45,27 @@ const emailFeedbackSchema = new mongoose.Schema({
       type: String,
       enum: ['sent', 'failed'],
       default: 'sent'
-    }
+    },
+    errorMessage: String,
+    opened: {
+      type: Boolean,
+      default: false
+    },
+    openedAt: Date,
+    openCount: {
+      type: Number,
+      default: 0
+    },
+    clicked: {
+      type: Boolean,
+      default: false
+    },
+    clickedAt: Date,
+    clickCount: {
+      type: Number,
+      default: 0
+    },
+    trackingId: String
   }],
   totalRecipients: {
     type: Number,
@@ -51,6 +79,14 @@ const emailFeedbackSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  openedCount: {
+    type: Number,
+    default: 0
+  },
+  clickedCount: {
+    type: Number,
+    default: 0
+  },
   sentAt: {
     type: Date,
     default: Date.now
@@ -61,5 +97,7 @@ const emailFeedbackSchema = new mongoose.Schema({
 
 emailFeedbackSchema.index({ userId: 1, sentAt: -1 });
 emailFeedbackSchema.index({ emailType: 1 });
+emailFeedbackSchema.index({ sentAt: -1 });
+emailFeedbackSchema.index({ 'recipients.trackingId': 1 });
 
 export default mongoose.model('EmailFeedback', emailFeedbackSchema);

@@ -12,6 +12,7 @@ import { getAnalytics, getUserGrowthData, getRevenueData } from '../controller/A
 import { getAllPostsAdmin, deletePostAdmin, deleteCommentAdmin, getLeaderboardAdmin, getCommunityStatsAdmin, fixLeaderboardSync, getUserPrizeHistory, getAllPrizeHistory } from '../controller/AdminController/communityController.js';
 import { awardPrizeTokens, getUserTokenStatus } from '../controller/AdminController/prizeTokenController.js';
 import { getReferralAnalytics, getReferrers, getReferredUsers, getReferrerDetails } from '../controller/AdminController/referralsController.js';
+import { getAllEmailFeedbacks, getEmailFeedbackById, getEmailStats } from '../controller/AdminController/emailController.js';
 
 const router = express.Router();
 
@@ -65,6 +66,11 @@ router.get('/referrals/analytics', authenticateAdmin, getReferralAnalytics);
 router.get('/referrals/referrers', authenticateAdmin, getReferrers);
 router.get('/referrals/referred-users', authenticateAdmin, getReferredUsers);
 router.get('/referrals/referrer/:id', authenticateAdmin, getReferrerDetails);
+
+// Email monitoring
+router.get('/emails', getAllEmailFeedbacks);
+router.get('/emails/stats', getEmailStats);
+router.get('/emails/:id', authenticateAdmin, getEmailFeedbackById);
 
 // Referral Rewards management
 import { getReferralRewards, awardReferralReward, getReferralRewardAnalytics } from '../controller/AdminController/referralRewardController.js';
